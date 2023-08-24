@@ -1,0 +1,3 @@
+/home/aless6/Scrivania/API/cmake-build-debug/CMakeFiles/API.dir
+/home/aless6/Scrivania/API/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/aless6/Scrivania/API/cmake-build-debug/CMakeFiles/rebuild_cache.dir
