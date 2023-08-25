@@ -127,8 +127,8 @@ void add_station(HashData** map, FILE* input) {
     new_station = malloc(sizeof(Station));
 
     if( new_station != NULL ){
-        fscanf(input, "%d", &new_station->distance);
-        fscanf(input, "%d", &quantity);
+
+        fscanf(input, "%d %d", &new_station->distance, &quantity);
         new_station->successive = NULL;
 
         for( int i=0; i<quantity; i++ ){
