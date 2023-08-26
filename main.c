@@ -28,7 +28,7 @@ int elaborate_cmd(char*);
 void add_station(HashData**, FILE*);
 int hash_function(int);
 void insert(HashData**, Station*);
-void remove_station();
+void remove_station(HashData**, FILE*);
 void remove_car();
 void route_calculation();
 void initialization(HashData**);
@@ -45,7 +45,7 @@ int main() {
                 add_station(hash_map, stdin);
                 break;
             case 2:
-                remove_station();
+                remove_station(hash_map, stdin);
                 break;
             case 3:
                 add_car();
@@ -98,13 +98,53 @@ void remove_car() {
 }
 
 
-void remove_station() {
+void remove_station(HashData** map, FILE* input) {
+    int found = 0, distance, key;
+    HashData* backup = NULL;
+    HashData* destroy = NULL;
+    Car* tmp;
 
+    fscanf(input, "%d", &distance);
+    key = hash_function(distance);
+    backup = map[key];
+
+    if(map[key]->data->distance == distance){
+        destroy = map[key];
+        map[key] = map[key]->next;
+        found = 1;
+    }else{
+        while(map[key] && !found){
+            if(map[key]->next->data->distance == distance) {
+                destroy = map[key]->next;
+                map[key]->next = map[key]->next->next;
+                found = 1;
+            }else {
+                map[key] = map[key]->next;
+            }
+        }
+
+        map[key] = backup;
+    }
+
+    while(destroy->data->available_cars){
+        tmp = destroy->data->available_cars;
+        destroy->data->available_cars = destroy->data->available_cars->other;
+        free(tmp);
+    }
+
+    free(destroy->data);
+    free(destroy);
+
+    if(found) {
+        printf("demolita\n");
+    }else {
+        printf("non demolita\n");
+    }
 }
 
 
 /**
- * @param dist della stazione dal kilometro zero
+ * @param dist della stazione dal chilometro zero
  * @return resto della divisione intera con la sensibilità scelta
  */
 int hash_function(int dist){
