@@ -31,13 +31,13 @@ void insert(HashData**, Station*);
 void remove_station(HashData**, FILE*);
 void remove_car();
 void route_calculation();
-void initialization(HashData**);
+Station* search_station(HashData**, int);
+void print_hash(HashData**);
 
 
 int main() {
     char cmd[COMMAND];
     HashData* hash_map[HASH_SIZE];
-    initialization(hash_map);
 
     while(fscanf(stdin, "%s", cmd) != EOF) {
         switch (elaborate_cmd(cmd)) {
@@ -59,32 +59,9 @@ int main() {
         }
     }
 
-    printf("\nThe program is terminated");
+    //print_hash(hash_map);
 
     return 1;
-}
-
-
-/**
- * Inizializza l'hash map inserendo la stazione "0" nella prima riga dell'hash map
- * @param map doppio puntatore poiché è un array di puntatori al tipo HashData, quindi prima deferenziazione è per accedere alla posizione dell'array (e.g.
- * array[2]) dopodiché è un puntatore alla prima struct HashData che contiene:
- *      - dato: stazione
- *      - next: puntatore al dato successivo
- */
-void initialization(HashData** map) {
-    Station *initial_station;
-
-    initial_station = malloc(sizeof(Station));
-
-    if( initial_station != NULL ){
-        initial_station->distance = 0;
-        initial_station->successive = NULL;
-        initial_station->available_cars = NULL;
-        insert(map, initial_station);
-    }else{
-        printf("Error: initial station not created;\n");
-    }
 }
 
 
@@ -98,6 +75,35 @@ void remove_car() {
 }
 
 
+/**
+ * @param map Hash Map delle stazioni
+ * @param distance della stazione che voglio cercare
+ * @return la stazione se è presente a quella distanza, NULL se la stazione non c'è
+ */
+Station* search_station(HashData** map, int distance){
+    int key = hash_function(distance), found=0;
+    HashData* tmp = NULL;
+    tmp = map[key];
+
+    while(tmp && !found){
+        if(tmp->data->distance == distance)
+            found = 1;
+        else
+            tmp = tmp->next;
+    }
+
+    if(found)
+        return tmp->data;
+    else
+        return NULL;
+}
+
+
+/**
+ * Rimuovere una stazione stampando demolita se c'è, non demolita se non c'è
+ * @param map Hash Map delle stazioni
+ * @param input file da cui leggere lo stdin
+ */
 void remove_station(HashData** map, FILE* input) {
     int found = 0, distance, key;
     HashData* backup = NULL;
@@ -108,36 +114,36 @@ void remove_station(HashData** map, FILE* input) {
     key = hash_function(distance);
     backup = map[key];
 
-    if(map[key]->data->distance == distance){
+    if(map[key] == NULL){
+        found = 0;
+    }else if(map[key]->data->distance == distance){
         destroy = map[key];
         map[key] = map[key]->next;
         found = 1;
-    }else{
-        while(map[key] && !found){
-            if(map[key]->next->data->distance == distance) {
+    }else {
+        while (map[key]->next && !found) {
+            if (map[key]->next->data->distance == distance) {
                 destroy = map[key]->next;
                 map[key]->next = map[key]->next->next;
                 found = 1;
-            }else {
+            } else {
                 map[key] = map[key]->next;
             }
         }
-
         map[key] = backup;
     }
 
-    while(destroy->data->available_cars){
-        tmp = destroy->data->available_cars;
-        destroy->data->available_cars = destroy->data->available_cars->other;
-        free(tmp);
-    }
+    if(found){
+        while(destroy->data->available_cars){
+            tmp = destroy->data->available_cars;
+            destroy->data->available_cars = destroy->data->available_cars->other;
+            free(tmp);
+        }
 
-    free(destroy->data);
-    free(destroy);
-
-    if(found) {
+        free(destroy->data);
+        free(destroy);
         printf("demolita\n");
-    }else {
+    }else{
         printf("non demolita\n");
     }
 }
@@ -162,23 +168,32 @@ int hash_function(int dist){
  */
 void add_station(HashData** map, FILE* input) {
     Station *new_station;
-    int quantity, range;
+    int quantity, range, distance;
+    fscanf(input, "%d", &distance);
 
-    new_station = malloc(sizeof(Station));
+    if(search_station(map, distance) == NULL){
+        new_station = malloc(sizeof(Station));
 
-    if( new_station != NULL ){
+        if( new_station != NULL ){
+            new_station->distance = distance;
+            fscanf(input, "%d",&quantity);
+            new_station->successive = NULL;
 
-        fscanf(input, "%d %d", &new_station->distance, &quantity);
-        new_station->successive = NULL;
+            for( int i=0; i<quantity; i++ ){
+                fscanf(input, "%d", &range);
+                new_car(&new_station->available_cars, range);
+            }
 
+            insert(map, new_station);
+        }else{
+            printf("Error: initial station not created;\n");
+        }
+    }else{
+        fscanf(input, "%d",&quantity);
         for( int i=0; i<quantity; i++ ){
             fscanf(input, "%d", &range);
-            new_car(&new_station->available_cars, range);
         }
-
-        insert(map, new_station);
-    }else{
-        printf("Error: initial station not created;\n");
+        printf("non aggiunta\n");
     }
 }
 
@@ -199,6 +214,8 @@ void insert(HashData** map, Station* station){
         new_data->next = map[key];
         map[key] = new_data;
     }
+
+    printf("aggiunta\n");
 }
 
 
@@ -272,22 +289,19 @@ void add_car() {
 
 
 
-
-
-
 //TEST
-//Stampare per tutta la dimensione della hash map le stazioni presenti e le macchine nella stazione
-/*
+
+void print_hash(HashData** map){
     for(int i=0; i<HASH_SIZE; i++){
         printf("\n\n\nGRUPPO: %d\n\n\n", i);
-        while(hash_map[i]) {
-            printf("Stazione: %d\n", hash_map[i]->data->distance);
-            while (hash_map[i]->data->available_cars) {
-                printf("Macchina: %d\n", hash_map[i]->data->available_cars->range);
-                hash_map[i]->data->available_cars = hash_map[i]->data->available_cars->other;
+        while(map[i]) {
+            printf("Stazione: %d\n", map[i]->data->distance);
+            while (map[i]->data->available_cars) {
+                printf("Macchina: %d\n", map[i]->data->available_cars->range);
+                map[i]->data->available_cars = map[i]->data->available_cars->other;
             }
-            hash_map[i] = hash_map[i]->next;
+            map[i] = map[i]->next;
             printf("\n");
         }
     }
-*/
+}
