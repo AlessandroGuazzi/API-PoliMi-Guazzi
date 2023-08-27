@@ -22,7 +22,7 @@ typedef struct data{
     Station* data;
 } HashData;
 
-void add_car();
+void add_car(HashData**, FILE*);
 void new_car(Car**, int);
 int elaborate_cmd(char*);
 void add_station(HashData**, FILE*);
@@ -48,7 +48,7 @@ int main() {
                 remove_station(hash_map, stdin);
                 break;
             case 3:
-                add_car();
+                add_car(hash_map, stdin);
                 break;
             case 4:
                 remove_car();
@@ -59,7 +59,7 @@ int main() {
         }
     }
 
-    //print_hash(hash_map);
+    print_hash(hash_map);
 
     return 1;
 }
@@ -264,8 +264,22 @@ int elaborate_cmd(char* cmd){
 }
 
 
-void add_car() {
-
+/**
+ *
+ * @param map
+ * @param input
+ */
+void add_car(HashData** map, FILE* input) {
+    int distance, range;
+    Station* refilled;
+    fscanf(input, "%d %d", &distance, &range);
+    refilled = search_station(map, distance);
+    if(refilled){
+        new_car(&refilled->available_cars, range);
+        printf("aggiunta\n");
+    }else{
+        printf("non aggiunta\n");
+    }
 }
 
 
