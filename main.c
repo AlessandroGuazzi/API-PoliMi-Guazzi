@@ -29,7 +29,7 @@ void add_station(HashData**, FILE*);
 int hash_function(int);
 void insert(HashData**, Station*);
 void remove_station(HashData**, FILE*);
-void remove_car();
+void remove_car(HashData**, FILE*);
 void route_calculation();
 Station* search_station(HashData**, int);
 void print_hash(HashData**);
@@ -51,7 +51,7 @@ int main() {
                 add_car(hash_map, stdin);
                 break;
             case 4:
-                remove_car();
+                remove_car(hash_map, stdin);
                 break;
             case 5:
                 route_calculation();
@@ -70,8 +70,50 @@ void route_calculation() {
 }
 
 
-void remove_car() {
+/**
+ * Rimuove una macchina da una determinata stazione, se non è presente scrive "non rottamata"
+ * @param map Hash Map delle stazioni
+ * @param input da cui legge lo stdin
+ */
+void remove_car(HashData** map, FILE* input) {
+    int distance, range, found = 0;
+    Station* target;
+    Car* destroy;
+    Car* backup;
 
+    fscanf(input, "%d %d", &distance, &range);
+
+    target = search_station(map, distance);
+
+    if(target){
+        backup = target->available_cars;
+
+        if(target->available_cars == NULL){
+            found = 0;
+        }else if(target->available_cars->range == range){
+            found = 1;
+            destroy = target->available_cars;
+            target->available_cars = target->available_cars->other;
+        }else{
+            while (target->available_cars->other && !found) {
+                if (target->available_cars->other->range == range) {
+                    destroy = target->available_cars->other;
+                    target->available_cars->other = target->available_cars->other->other;
+                    found = 1;
+                } else {
+                    target->available_cars = target->available_cars->other;
+                }
+            }
+            target->available_cars = backup;
+        }
+    }
+
+    if(found){
+        free(destroy);
+        printf("rottamata\n");
+    }else{
+        printf("non rottamata\n");
+    }
 }
 
 
@@ -265,15 +307,18 @@ int elaborate_cmd(char* cmd){
 
 
 /**
- *
- * @param map
- * @param input
+ * Aggiunge una macchina alla giusta stazione e stampa "aggiunta", stampa "non aggiunta" se fallisce
+ * @param map Hash Map delle stazioni
+ * @param input file da cui leggere stdin
  */
 void add_car(HashData** map, FILE* input) {
     int distance, range;
     Station* refilled;
+
     fscanf(input, "%d %d", &distance, &range);
+
     refilled = search_station(map, distance);
+
     if(refilled){
         new_car(&refilled->available_cars, range);
         printf("aggiunta\n");
