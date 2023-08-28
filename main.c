@@ -59,7 +59,7 @@ int main() {
         }
     }
 
-    print_hash(hash_map);
+    //print_hash(hash_map);
 
     return 1;
 }
@@ -201,7 +201,7 @@ int hash_function(int dist){
 
 
 /**
- * Aggiunge una stazione con l'arrivo del comando "aggiungi-stazione"
+ * Aggiunge una stazione con l'arrivo del comando "aggiungi-stazione", le stazioni saranno salvate in ordine crescente di distanza dallo 0 nel corretto spazio della hash map
  * @param map doppio puntatore poiché è un array di puntatori al tipo HashData, quindi prima deferenziazione è per accedere alla posizione dell'array (e.g.
  * array[2]) dopodiché è un puntatore alla prima struct HashData che contiene:
  *      - dato: stazione
@@ -241,20 +241,40 @@ void add_station(HashData** map, FILE* input) {
 
 
 /**
- * Inserire una determinata stazione come nuovo dato nella riga dell'hash map corretta
- * @param map
- * @param station
+ * Inserire una determinata stazione come nuovo dato nella riga dell'hash map corretta, tenendole in ordine di distanza crescentre dalla stazione 0
+ * @param map has map delle stazioni
+ * @param station da aggiungere
  */
 void insert(HashData** map, Station* station){
-    HashData *new_data;
+    HashData *new_data, *tmp;
     int key = hash_function(station->distance);
 
     new_data = malloc(sizeof(HashData));
 
     if( new_data != NULL ){
         new_data->data = station;
-        new_data->next = map[key];
-        map[key] = new_data;
+
+        tmp = map[key];
+
+        if(tmp == NULL){
+            map[key] = new_data;
+        }else if(tmp->data->distance > new_data->data->distance){
+            new_data->next = map[key];
+            map[key] = new_data;
+        }else{
+            while(tmp->next){
+                if(tmp->next->data->distance > new_data->data->distance){
+                    new_data->next = tmp->next;
+                    tmp->next = new_data;
+                    break;
+                }
+                tmp = tmp->next;
+            }
+            if(tmp->next == NULL){
+                tmp->next = new_data;
+            }
+        }
+
     }
 
     printf("aggiunta\n");
@@ -262,19 +282,38 @@ void insert(HashData** map, Station* station){
 
 
 /**
- * Creazione di una nuova macchina ed aggiunta nella sezione "available_cars" di una stazione di servizio
+ * Creazione di una nuova macchina ed aggiunta nella sezione "available_cars" di una stazione di servizio, le macchine sono salvate in ordine decrescente di autonomia
  * @param available puntatore alla sezione delle macchine disponibili
  * @param range autonomia massima della macchina inserita
  */
 void new_car(Car** available, int range){
-    Car *new_car;
+    Car *new_car, *tmp;
 
     new_car = malloc(sizeof(Car));
 
     if( new_car != NULL ){
+        tmp = *available;
         new_car->range = range;
-        new_car->other = *available;
-        *available = new_car;
+
+        if(tmp == NULL){
+            *available = new_car;
+        }else if(tmp->range < new_car->range){
+            new_car->other = *available;
+            *available = new_car;
+        }else{
+            while(tmp->other){
+                if(tmp->other->range < new_car->range){
+                    new_car->other = tmp->other;
+                    tmp->other = new_car;
+                    break;
+                }
+                tmp = tmp->other;
+            }
+            if(tmp->other == NULL){
+                tmp->other = new_car;
+            }
+        }
+
     }else{
         printf("Error: new car not created;\n");
     }
