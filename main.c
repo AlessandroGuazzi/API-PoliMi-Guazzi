@@ -11,11 +11,20 @@ typedef struct car{
     struct car* other;
 } Car;
 
+
+typedef struct node Node;
+
 typedef struct station{
     int distance;
-    struct station* successive;
+    int id;
+    struct node* reachable;
     Car* available_cars;
 } Station;
+
+typedef struct node{
+    Station* reaching;
+    struct node* next;
+} Node;
 
 typedef struct data{
     struct data* next;
@@ -30,9 +39,12 @@ int hash_function(int);
 void insert(HashData**, Station*);
 void remove_station(HashData**, FILE*);
 void remove_car(HashData**, FILE*);
-void route_calculation();
+void route_calculation(HashData**, FILE*);
+void dijkstra();
 Station* search_station(HashData**, int);
 void print_hash(HashData**);
+void print_path(HashData**, int, int);
+void add_reachable(Node**, Station*);
 
 
 int main() {
@@ -54,7 +66,7 @@ int main() {
                 remove_car(hash_map, stdin);
                 break;
             case 5:
-                route_calculation();
+                route_calculation(hash_map, stdin);
                 break;
         }
     }
@@ -65,8 +77,124 @@ int main() {
 }
 
 
-void route_calculation() {
+/**
+ * Crea il grafo segnando in ogni stazione nel range di interesse le stazioni raggiungibili con la macchina con maggiore autonomia, si occuperà poi di chiamare Dijkstra
+ * @param map Hash Map delle stazioni
+ * @param input da cui legge lo stdin
+ */
+void route_calculation(HashData** map, FILE* input) {
+    int start, finish, key, dimension = 0, flag = 0;
+    HashData  *tmp, *data;
 
+    fscanf(input, "%d %d", &start, &finish);
+
+    key = hash_function(finish);
+    data = map[key];
+
+    while(data){
+        if(data->data->distance == finish){
+            flag++;
+            break;
+        }
+        data = data->next;
+    }
+
+    key = hash_function(start);
+    data = map[key];
+
+    while(data){
+        if(data->data->distance == start){
+            flag++;
+            break;
+        }
+        data = data->next;
+    }
+
+    if(flag < 2){
+        printf("nessun percorso\n");
+        return;
+    }else{
+        while(data->data->distance<finish){
+            dimension++;
+            data->data->id = dimension;
+            tmp = data;
+            while((tmp->data->distance - data->data->distance) <= data->data->available_cars->range && tmp->data->distance<=finish){
+                if(tmp->data->distance != data->data->distance){
+                    add_reachable(&data->data->reachable, tmp->data);
+                }
+                tmp = tmp->next;
+                if(tmp == NULL){
+                    if(key < HASH_SIZE-1){
+                        key++;
+                        while(map[key] == NULL && key<HASH_SIZE-1){
+                            key++;
+                        }
+                        tmp = map[key];
+                        if(tmp == NULL){
+                            break;
+                        }
+                    }else{
+                        break;
+                    }
+                }
+            }
+
+            key = hash_function(data->data->distance);
+            data = data->next;
+            if(data == NULL){
+                if(key < HASH_SIZE-1){
+                    key++;
+                    while(map[key] == NULL && key<HASH_SIZE-1){
+                        key++;
+                    }
+                    data = map[key];
+                    if(data == NULL){
+                        break;
+                    }
+                }else{
+                    break;
+                }
+            }
+        }
+    }
+
+    print_path(map, start, finish);
+
+    dijkstra();
+}
+
+
+void dijkstra(){
+
+}
+
+/**
+ * Aggiunge alle stazioni le eventuali stazioni raggiungibili con la macchina di maggiore autonomia in essa
+ * @param n lista delle stazioni raggiungibili
+ * @param s stazione da aggiungere poiché raggiungibile
+ */
+void add_reachable(Node** n, Station* s) {
+    Node *new_node, *tmp;
+
+    new_node = malloc(sizeof(Node));
+
+    if (new_node != NULL) {
+
+        new_node->reaching = s;
+        new_node->next = NULL;
+
+        if (*n == NULL) {
+            *n = new_node;
+        } else {
+            tmp = *n;
+            while(tmp->next){
+                tmp = tmp->next;
+            }
+            tmp->next = new_node;
+        }
+    } else {
+        printf("Error: new reachable node was not created\n");
+    }
 }
 
 
@@ -218,8 +346,9 @@ void add_station(HashData** map, FILE* input) {
 
         if( new_station != NULL ){
             new_station->distance = distance;
+            new_station->id = 0;
             fscanf(input, "%d",&quantity);
-            new_station->successive = NULL;
+            new_station->reachable = NULL;
 
             for( int i=0; i<quantity; i++ ){
                 fscanf(input, "%d", &range);
@@ -402,4 +531,44 @@ void print_hash(HashData** map){
             printf("\n");
         }
     }
+}
+
+void print_path(HashData** map, int s, int f){
+    HashData *source;
+    int key = hash_function(s);
+
+    source = map[key];
+
+    while(source){
+        if(source->data->distance == s){
+            break;
+        }
+        source = source->next;
+    }
+
+    printf("\n");
+    while(source->data->distance < f){
+        printf("Dalla stazione %d: ", source->data->distance);
+        while(source->data->reachable){
+            printf("%d ", source->data->reachable->reaching->distance);
+            source->data->reachable = source->data->reachable->next;
+        }
+        printf("\n");
+        source = source->next;
+        if(source == NULL){
+            if(key < HASH_SIZE-1){
+                key++;
+                while(map[key] == NULL && key<HASH_SIZE-1){
+                    key++;
+                }
+                source = map[key];
+                if(source == NULL) {
+                    break;
+                }
+            }else{
+                break;
+            }
+        }
+    }
+
 }
