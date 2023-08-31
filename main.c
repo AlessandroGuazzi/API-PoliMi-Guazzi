@@ -27,6 +27,7 @@ typedef struct node{
 } Node;
 
 typedef struct data{
+    struct data* previous;
     struct data* next;
     Station* data;
 } HashData;
@@ -48,9 +49,12 @@ void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
 void reset(HashData**, HashData*, HashData*);
 void create_graph(HashData**, HashData*, int*, int);
+void create_graph_reverse(HashData**, HashData*, int*, int);
 void printQ(Node*);
 void print_path(HashData**, int, int, int);
+void print_path_reverse(HashData**, int, int, int);
 void print_hash(HashData**);
+void print_hash_reverse(HashData**);
 
 
 int main() {
@@ -82,6 +86,7 @@ int main() {
     }
 
     //print_hash(hash_map);
+    //print_hash_reverse(hash_map);
 
     return 1;
 }
@@ -95,7 +100,7 @@ int main() {
 void route_calculation(HashData** map, FILE* input) {
 
     int start, finish, key, dimension = 0, flag = 0, i;
-    HashData  *tmp, *data, *source, *arrival;
+    HashData *data, *source, *arrival;
 
     fscanf(input, "%d %d", &start, &finish);
 
@@ -123,13 +128,18 @@ void route_calculation(HashData** map, FILE* input) {
         data = data->next;
     }
 
-    //Seconda condizione if è solo finché non posso calcolare il contrario
+    //TODO Seconda condizione if è solo finché non posso calcolare il contrario
     if(flag < 2 || start>finish){
         printf("nessun percorso\n");
         return;
     }else{
-        create_graph(map, data, &dimension, finish);
-        //print_path(map, start, finish, dimension);
+        if(start <= finish) {
+            create_graph(map, data, &dimension, finish);
+            //print_path(map, start, finish, dimension);
+        }else{
+            create_graph_reverse(map, data, &dimension, finish);
+            //print_path_reverse(map, start, finish, dimension);
+        }
 
         int distance[dimension], print[dimension];
         Station* precedent[dimension];
@@ -155,6 +165,73 @@ void route_calculation(HashData** map, FILE* input) {
 }
 
 
+/**
+ * Creazione del DAG aggiungendo per ogni stazione l'ID e le stazioni raggiungibili da essa, nel caso di percorso inverso
+ * @param map Hash Map delle stazioni
+ * @param data Inizio del grafo
+ * @param dimension sarà il numero di nodi del grafo
+ * @param start distanza della stazione di partenza
+ */
+void create_graph_reverse(HashData **map, HashData *data, int *dimension, int start){
+    HashData *tmp = NULL;
+    int key = hash_function(data->data->distance);
+
+    while(data->data->distance > start){
+        *dimension = *dimension + 1;
+        data->data->id = *dimension;
+        tmp = data;
+        if(data->data->available_cars != NULL) {
+            while ((data->data->distance - tmp->data->distance) <= data->data->available_cars->range && tmp->data->distance >= start) {
+                if (tmp->data->distance != data->data->distance) {
+                    add_reachable(&data->data->reachable, tmp->data);
+                }
+                tmp = tmp->previous;
+                if (tmp == NULL) {
+                    if (key > 0) {
+                        key--;
+                        while (map[key] == NULL && key > 0) {
+                            key--;
+                        }
+                        tmp = map[key];
+                        if (tmp == NULL) {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        key = hash_function(data->data->distance);
+        data = data->previous;
+        if(data == NULL){
+            if(key > 0){
+                key--;
+                while(map[key] == NULL && key > 0){
+                    key--;
+                }
+                data = map[key];
+                if(data == NULL){
+                    break;
+                }
+            }else{
+                break;
+            }
+        }
+    }
+    *dimension = *dimension + 1;
+    data->data->id = *dimension;
+}
+
+
+/**
+ * Creazione del DAG aggiungendo per ogni stazione l'ID e le stazioni raggiungibili da essa
+ * @param map Hash Map delle stazioni
+ * @param data Inizio del grafo
+ * @param dimension sarà il numero di nodi del grafo
+ * @param start distanza della stazione di partenza
+ */
 void create_graph(HashData **map, HashData *data, int *dimension, int finish){
     HashData *tmp = NULL;
     int key = hash_function(data->data->distance);
@@ -610,18 +687,22 @@ void insert(HashData** map, Station* station){
     if( new_data != NULL ){
         new_data->data = station;
         new_data->next = NULL;
+        new_data->previous = NULL;
 
         tmp = map[key];
 
         if(tmp == NULL){
             map[key] = new_data;
         }else if(tmp->data->distance > new_data->data->distance){
+            tmp->previous = new_data;
             new_data->next = map[key];
             map[key] = new_data;
         }else{
             while(tmp->next){
                 if(tmp->next->data->distance > new_data->data->distance){
                     new_data->next = tmp->next;
+                    new_data->previous = tmp;
+                    tmp->next->previous = new_data;
                     tmp->next = new_data;
                     break;
                 }
@@ -629,6 +710,7 @@ void insert(HashData** map, Station* station){
             }
             if(tmp->next == NULL){
                 tmp->next = new_data;
+                new_data->previous = tmp;
             }
         }
 
@@ -763,6 +845,28 @@ void print_hash(HashData** map){
 }
 
 
+void print_hash_reverse(HashData **map){
+    for(int i=0; i<HASH_SIZE; i++){
+        printf("\n\n\nGRUPPO: %d\n\n\n", i);
+        if(map[i] == NULL){
+            continue;
+        }
+        while(map[i]->next){
+            map[i] = map[i]->next;
+        }
+        while(map[i]) {
+            printf("Stazione: %d\n", map[i]->data->distance);
+            while (map[i]->data->available_cars) {
+                printf("Macchina: %d\n", map[i]->data->available_cars->range);
+                map[i]->data->available_cars = map[i]->data->available_cars->other;
+            }
+            map[i] = map[i]->previous;
+            printf("\n");
+        }
+    }
+}
+
+
 void print_path(HashData** map, int s, int f, int dim){
     HashData *source;
     int key = hash_function(s);
@@ -790,6 +894,47 @@ void print_path(HashData** map, int s, int f, int dim){
                 key++;
                 while(map[key] == NULL && key<HASH_SIZE-1){
                     key++;
+                }
+                source = map[key];
+                if(source == NULL) {
+                    break;
+                }
+            }else{
+                break;
+            }
+        }
+    }
+    printf("I nodi coinvolti sono: %d\n", dim);
+}
+
+
+void print_path_reverse(HashData** map, int s, int f, int dim){
+    HashData *source = NULL;
+    int key = hash_function(s);
+
+    source = map[key];
+
+    while(source){
+        if(source->data->distance == s){
+            break;
+        }
+        source = source->next;
+    }
+
+    printf("\n");
+    while(source->data->distance > f){
+        printf("Dalla stazione %d (%d): ", source->data->distance, source->data->id);
+        while(source->data->reachable){
+            printf("%d(%d) ", source->data->reachable->reaching->distance, source->data->reachable->reaching->id);
+            source->data->reachable = source->data->reachable->next;
+        }
+        printf("\n");
+        source = source->previous;
+        if(source == NULL){
+            if(key >= 0){
+                key--;
+                while(map[key] == NULL && key >= 0){
+                    key--;
                 }
                 source = map[key];
                 if(source == NULL) {
