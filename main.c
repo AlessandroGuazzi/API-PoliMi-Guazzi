@@ -47,6 +47,7 @@ Node* create_qnode(Station*);
 void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
 void reset(HashData**, HashData*, HashData*);
+void create_graph(HashData**, HashData*, int*, int);
 void printQ(Node*);
 void print_path(HashData**, int, int, int);
 void print_hash(HashData**);
@@ -127,53 +128,7 @@ void route_calculation(HashData** map, FILE* input) {
         printf("nessun percorso\n");
         return;
     }else{
-        while(data->data->distance<finish){
-            dimension++;
-            data->data->id = dimension;
-            tmp = data;
-            if(data->data->available_cars != NULL) {
-                while ((tmp->data->distance - data->data->distance) <= data->data->available_cars->range &&
-                       tmp->data->distance <= finish) {
-                    if (tmp->data->distance != data->data->distance) {
-                        add_reachable(&data->data->reachable, tmp->data);
-                    }
-                    tmp = tmp->next;
-                    if (tmp == NULL) {
-                        if (key < HASH_SIZE - 1) {
-                            key++;
-                            while (map[key] == NULL && key < HASH_SIZE - 1) {
-                                key++;
-                            }
-                            tmp = map[key];
-                            if (tmp == NULL) {
-                                break;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            key = hash_function(data->data->distance);
-            data = data->next;
-            if(data == NULL){
-                if(key < HASH_SIZE-1){
-                    key++;
-                    while(map[key] == NULL && key<HASH_SIZE-1){
-                        key++;
-                    }
-                    data = map[key];
-                    if(data == NULL){
-                        break;
-                    }
-                }else{
-                    break;
-                }
-            }
-        }
-        dimension++;
-        data->data->id = dimension;
+        create_graph(map, data, &dimension, finish);
         //print_path(map, start, finish, dimension);
 
         int distance[dimension], print[dimension];
@@ -198,6 +153,61 @@ void route_calculation(HashData** map, FILE* input) {
         reset(map, source, arrival);
     }
 }
+
+
+void create_graph(HashData **map, HashData *data, int *dimension, int finish){
+    HashData *tmp = NULL;
+    int key = hash_function(data->data->distance);
+
+    while(data->data->distance<finish){
+        *dimension = *dimension + 1;
+        data->data->id = *dimension;
+        tmp = data;
+        if(data->data->available_cars != NULL) {
+            while ((tmp->data->distance - data->data->distance) <= data->data->available_cars->range &&
+                   tmp->data->distance <= finish) {
+                if (tmp->data->distance != data->data->distance) {
+                    add_reachable(&data->data->reachable, tmp->data);
+                }
+                tmp = tmp->next;
+                if (tmp == NULL) {
+                    if (key < HASH_SIZE - 1) {
+                        key++;
+                        while (map[key] == NULL && key < HASH_SIZE - 1) {
+                            key++;
+                        }
+                        tmp = map[key];
+                        if (tmp == NULL) {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        key = hash_function(data->data->distance);
+        data = data->next;
+        if(data == NULL){
+            if(key < HASH_SIZE-1){
+                key++;
+                while(map[key] == NULL && key<HASH_SIZE-1){
+                    key++;
+                }
+                data = map[key];
+                if(data == NULL){
+                    break;
+                }
+            }else{
+                break;
+            }
+        }
+    }
+    *dimension = *dimension + 1;
+    data->data->id = *dimension;
+}
+
 
 
 /**
