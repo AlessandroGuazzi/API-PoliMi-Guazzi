@@ -564,8 +564,8 @@ void add_station(HashData** map, FILE* input) {
         if( new_station != NULL ){
             new_station->distance = distance;
             new_station->id = 0;
-            fscanf(input, "%d",&quantity);
             new_station->reachable = NULL;
+            fscanf(input, "%d", &quantity);
 
             for( int i=0; i<quantity; i++ ){
                 fscanf(input, "%d", &range);
@@ -641,6 +641,7 @@ void new_car(Car** available, int range){
     if( new_car != NULL ){
         tmp = *available;
         new_car->range = range;
+        new_car->other = NULL;
 
         if(tmp == NULL){
             *available = new_car;
