@@ -3,8 +3,8 @@
 #include <stdlib.h>
 
 #define COMMAND 18
-#define HASH_SIZE 5
-#define SENSIBILITY 50
+#define HASH_SIZE 50
+#define SENSIBILITY 100
 
 typedef struct car{
     int range;
@@ -40,16 +40,25 @@ void insert(HashData**, Station*);
 void remove_station(HashData**, FILE*);
 void remove_car(HashData**, FILE*);
 void route_calculation(HashData**, FILE*);
-void dijkstra();
+void dijkstra(HashData**, HashData*, HashData*, int, int, int, int*, Station**, int*);
+Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish);
 Station* search_station(HashData**, int);
-void print_hash(HashData**);
-void print_path(HashData**, int, int);
+Node* create_qnode(Station*);
+void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
+void reset(HashData**, HashData*, HashData*);
+void printQ(Node*);
+void print_path(HashData**, int, int, int);
+void print_hash(HashData**);
 
 
 int main() {
     char cmd[COMMAND];
     HashData* hash_map[HASH_SIZE];
+
+    for(int i=0; i<HASH_SIZE; i++){
+        hash_map[i] = NULL;
+    }
 
     while(fscanf(stdin, "%s", cmd) != EOF) {
         switch (elaborate_cmd(cmd)) {
@@ -83,8 +92,9 @@ int main() {
  * @param input da cui legge lo stdin
  */
 void route_calculation(HashData** map, FILE* input) {
-    int start, finish, key, dimension = 0, flag = 0;
-    HashData  *tmp, *data;
+
+    int start, finish, key, dimension = 0, flag = 0, i;
+    HashData  *tmp, *data, *source, *arrival;
 
     fscanf(input, "%d %d", &start, &finish);
 
@@ -94,6 +104,7 @@ void route_calculation(HashData** map, FILE* input) {
     while(data){
         if(data->data->distance == finish){
             flag++;
+            arrival = data;
             break;
         }
         data = data->next;
@@ -105,12 +116,14 @@ void route_calculation(HashData** map, FILE* input) {
     while(data){
         if(data->data->distance == start){
             flag++;
+            source = data;
             break;
         }
         data = data->next;
     }
 
-    if(flag < 2){
+    //Seconda condizione if è solo finché non posso calcolare il contrario
+    if(flag < 2 || start>finish){
         printf("nessun percorso\n");
         return;
     }else{
@@ -118,23 +131,26 @@ void route_calculation(HashData** map, FILE* input) {
             dimension++;
             data->data->id = dimension;
             tmp = data;
-            while((tmp->data->distance - data->data->distance) <= data->data->available_cars->range && tmp->data->distance<=finish){
-                if(tmp->data->distance != data->data->distance){
-                    add_reachable(&data->data->reachable, tmp->data);
-                }
-                tmp = tmp->next;
-                if(tmp == NULL){
-                    if(key < HASH_SIZE-1){
-                        key++;
-                        while(map[key] == NULL && key<HASH_SIZE-1){
+            if(data->data->available_cars != NULL) {
+                while ((tmp->data->distance - data->data->distance) <= data->data->available_cars->range &&
+                       tmp->data->distance <= finish) {
+                    if (tmp->data->distance != data->data->distance) {
+                        add_reachable(&data->data->reachable, tmp->data);
+                    }
+                    tmp = tmp->next;
+                    if (tmp == NULL) {
+                        if (key < HASH_SIZE - 1) {
                             key++;
-                        }
-                        tmp = map[key];
-                        if(tmp == NULL){
+                            while (map[key] == NULL && key < HASH_SIZE - 1) {
+                                key++;
+                            }
+                            tmp = map[key];
+                            if (tmp == NULL) {
+                                break;
+                            }
+                        } else {
                             break;
                         }
-                    }else{
-                        break;
                     }
                 }
             }
@@ -156,17 +172,218 @@ void route_calculation(HashData** map, FILE* input) {
                 }
             }
         }
+        dimension++;
+        data->data->id = dimension;
+        //print_path(map, start, finish, dimension);
+
+        int distance[dimension], print[dimension];
+        Station* precedent[dimension];
+
+        dijkstra(map, source, arrival, start, finish, dimension, distance, precedent, print);
+
+        i=dimension-1;
+
+        if(precedent[i] == NULL){
+            printf("nessun percorso\n");
+        }else{
+            for(i = 0; i<dimension-1; i++){
+                if(print[i] != -1){
+                    printf("%d ", print[i]);
+                }
+            }
+            printf("%d", print[i]);
+            printf("\n");
+        }
+
+        reset(map, source, arrival);
+    }
+}
+
+
+/**
+ * Funzione di reset che prende il grafo utilizzato in precedenza e per ogni nodo, pulisce le stazioni raggiungibili da esso e ne resetta l'id riponendolo a 0
+ * @param map Hash Map delle stazioni
+ * @param source stazione di partenza
+ * @param arrival stazione di arrivo
+ */
+void reset(HashData **map, HashData *source, HashData *arrival){
+    Node *tmp=NULL;
+    int key = hash_function(source->data->distance);
+
+    while(source->data->distance != arrival->data->distance){
+        source->data->id = 0;
+        while(source->data->reachable) {
+            tmp = source->data->reachable;
+            source->data->reachable = source->data->reachable->next;
+            free(tmp);
+        }
+        source = source->next;
+        if(source == NULL){
+            if(key < HASH_SIZE-1){
+                key++;
+                while(map[key] == NULL && key<HASH_SIZE-1){
+                    key++;
+                }
+                source = map[key];
+            }
+        }
+    }
+    source->data->id = 0;
+}
+
+
+/**
+ * Algoritmo di Dijkstra per la ricerca del percorso a costo minimo
+ * @param map Hash Map delle stazioni
+ * @param source stazione di partenza
+ * @param arrival stazione di arrivo
+ * @param start distanza della stazione di partenza
+ * @param finish distanza della stazione di arrivo
+ * @param dimension numero di stazioni prese in considerazione (include partenza e arrivo)
+ * @param distance array che per ogni stazione (discriminata dall'ID) dice la distanza salvata
+ * @param precedent array che per ogni stazione si salva quella che la precede
+ * @param print array che serve a stampare le stazioni nell'ordine giusto alla fine dell'algoritmo
+ */
+void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, int finish, int dimension, int *distance, Station **precedent, int *print){
+    Node *u, *v;
+    int alt, i;
+
+    for(i=0; i<dimension; i++){
+        distance[i] = -1;
+        precedent[i] = NULL;
+        print[i] = -1;
     }
 
-    print_path(map, start, finish);
+    distance[0] = 0;
+    Node *q = dijkstra_setup(map, source, start, finish);
 
-    dijkstra();
+    //print_path(map, start, finish, dimension);
+
+    //printQ(q);
+
+    while(q){
+        u = q;
+
+        if(distance[u->reaching->id-1] == -1 || u->reaching->distance == finish){
+            break;
+        }
+
+        v = u->reaching->reachable;
+
+        while(v){
+            alt = distance[u->reaching->id-1] + 1;
+            if(distance[v->reaching->id-1]==-1 || alt < distance[v->reaching->id-1]){
+                distance[v->reaching->id-1] = alt;
+                precedent[v->reaching->id-1] = u->reaching;
+                //Riordino non necessario?
+            }
+
+            v = v->next;
+        }
+
+        delete_qnode(&q);
+    }
+
+    i = i-1;
+
+    if(precedent[i] != NULL){
+        int j = i;
+        print[i] = arrival->data->distance;
+        i--;
+        while(precedent[j]->distance != start){
+            print[i] = precedent[j]->distance;
+            j = precedent[j]->id-1;
+            i--;
+        }
+        print[i] = source->data->distance;
+    }
+
 }
 
 
-void dijkstra(){
-
+/**
+ * Distrugge il primo elemento dell'array Q in Dijkstra, essendo tanto sempre già in ordine
+ * @param q Array Q passato come doppio puntatore
+ */
+void delete_qnode(Node **q){
+    Node *tmp;
+    tmp = *q;
+    *q = tmp->next;
+    free(tmp);
 }
+
+
+/**
+ * @param s stazione che si vuole aggiungere all'array Q in Dijkstra
+ * @return la stazione neo-creata
+ */
+Node* create_qnode(Station *s){
+    Node *result;
+
+    result = malloc(sizeof(Node));
+
+    if(result){
+        result->reaching = s;
+        result->next = NULL;
+    }else{
+        printf("Error: new q node not created");
+    }
+
+    return result;
+}
+
+
+/**
+ * @param map Hash Map delle stazioni
+ * @param source stazione di partenza
+ * @param start distanza della stazione di partenza
+ * @param finish distanza della stazione di arrivo
+ * @return l'array Q in dijkstra che contiene tutte le stazioni in ordine di distanza e di costo
+ */
+Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish){
+    Node *result = NULL, *advancement = NULL;
+    HashData *tmp;
+    int key = hash_function(source->data->distance);
+
+    result = create_qnode(source->data);
+
+    if(source->data->distance == start && source->data->distance == finish){
+        return result;
+    }
+
+    advancement = result;
+    tmp = source->next;
+
+    if(tmp == NULL){
+        if(key < HASH_SIZE-1){
+            key++;
+            while(map[key] == NULL && key<HASH_SIZE-1){
+                key++;
+            }
+            tmp = map[key];
+        }
+    }
+
+    while(tmp->data->distance != finish){
+        advancement->next = create_qnode(tmp->data);
+        advancement = advancement->next;
+        tmp = tmp->next;
+        if(tmp == NULL){
+            if(key < HASH_SIZE-1){
+                key++;
+                while(map[key] == NULL && key<HASH_SIZE-1){
+                    key++;
+                }
+                tmp = map[key];
+            }
+        }
+    }
+
+    advancement->next = create_qnode(tmp->data);
+
+    return result;
+}
+
 
 /**
  * Aggiunge alle stazioni le eventuali stazioni raggiungibili con la macchina di maggiore autonomia in essa
@@ -382,6 +599,7 @@ void insert(HashData** map, Station* station){
 
     if( new_data != NULL ){
         new_data->data = station;
+        new_data->next = NULL;
 
         tmp = map[key];
 
@@ -533,7 +751,8 @@ void print_hash(HashData** map){
     }
 }
 
-void print_path(HashData** map, int s, int f){
+
+void print_path(HashData** map, int s, int f, int dim){
     HashData *source;
     int key = hash_function(s);
 
@@ -548,9 +767,9 @@ void print_path(HashData** map, int s, int f){
 
     printf("\n");
     while(source->data->distance < f){
-        printf("Dalla stazione %d: ", source->data->distance);
+        printf("Dalla stazione %d (%d): ", source->data->distance, source->data->id);
         while(source->data->reachable){
-            printf("%d ", source->data->reachable->reaching->distance);
+            printf("%d(%d) ", source->data->reachable->reaching->distance, source->data->reachable->reaching->id);
             source->data->reachable = source->data->reachable->next;
         }
         printf("\n");
@@ -570,5 +789,14 @@ void print_path(HashData** map, int s, int f){
             }
         }
     }
+    printf("I nodi coinvolti sono: %d\n", dim);
+}
 
+
+void printQ(Node *q){
+    while(q->next){
+        printf("%d(%d) -> ", q->reaching->distance, q->reaching->id);
+        q = q->next;
+    }
+    printf("%d(%d)\n", q->reaching->distance, q->reaching->id);
 }
