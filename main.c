@@ -17,6 +17,7 @@ typedef struct node Node;
 typedef struct station{
     int distance;
     int id;
+    int max_range;
     struct node* reachable;
     Car* available_cars;
 } Station;
@@ -59,6 +60,7 @@ void reorder_q(Node**, Node*, const int*);
 //void print_path_reverse(HashData**, int, int, int);
 //void print_hash(HashData**);
 //void print_hash_reverse(HashData**);
+void find_new_max(Station*);
 
 
 int main() {
@@ -194,7 +196,7 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int fi
         data->data->id = *dimension;
         tmp = data;
         if(data->data->available_cars != NULL) {
-            while ((data->data->distance - tmp->data->distance) <= data->data->available_cars->range && tmp->data->distance >= finish) {
+            while ((data->data->distance - tmp->data->distance) <= data->data->max_range && tmp->data->distance >= finish) {
                 if (tmp->data->distance != data->data->distance) {
                     add_reachable(&data->data->reachable, tmp->data);
                 }
@@ -266,7 +268,7 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
         data->data->id = *dimension;
         tmp = data;
         if(data->data->available_cars != NULL) {
-            while ((tmp->data->distance - data->data->distance) <= data->data->available_cars->range &&
+            while ((tmp->data->distance - data->data->distance) <= data->data->max_range &&
                    tmp->data->distance <= finish) {
                 if (tmp->data->distance != data->data->distance) {
                     add_reachable(&data->data->reachable, tmp->data);
@@ -779,11 +781,31 @@ void remove_car(HashData** map, FILE* input) {
     }
 
     if(found){
-        free(destroy);
+        if(target->max_range == destroy->range){
+            free(destroy);
+            find_new_max(target);
+        }else{
+            free(destroy);
+        }
         printf("rottamata\n");
     }else{
         printf("non rottamata\n");
     }
+}
+
+void find_new_max(Station *target) {
+    int max = 0;
+    Car *tmp = NULL;
+
+    tmp = target->available_cars;
+    while(tmp){
+        if(tmp->range > max){
+            max = tmp->range;
+        }
+        tmp = tmp->other;
+    }
+
+    target->max_range = max;
 }
 
 
@@ -895,12 +917,16 @@ void add_station(HashData** map, FILE* input) {
         if( new_station != NULL ){
             new_station->distance = distance;
             new_station->id = 0;
+            new_station->max_range = 0;
             new_station->reachable = NULL;
             new_station->available_cars = NULL;
             if(fscanf(input, "%d", &quantity) != EOF){}
 
             for( int i=0; i<quantity; i++ ){
                 if(fscanf(input, "%d", &range) != EOF){}
+                if(range > new_station->max_range){
+                    new_station->max_range = range;
+                }
                 new_car(&new_station->available_cars, range);
             }
 
@@ -971,34 +997,14 @@ void insert(HashData** map, Station* station){
  * @param range autonomia massima della macchina inserita
  */
 void new_car(Car** available, int range){
-    Car *new_car = NULL, *tmp = NULL;
+    Car *new_car = NULL;
 
     new_car = malloc(sizeof(Car));
 
     if( new_car != NULL ){
-        tmp = *available;
         new_car->range = range;
-        new_car->other = NULL;
-
-        if(tmp == NULL){
-            *available = new_car;
-        }else if(tmp->range < new_car->range){
-            new_car->other = *available;
-            *available = new_car;
-        }else{
-            while(tmp->other){
-                if(tmp->other->range < new_car->range){
-                    new_car->other = tmp->other;
-                    tmp->other = new_car;
-                    break;
-                }
-                tmp = tmp->other;
-            }
-            if(tmp->other == NULL){
-                tmp->other = new_car;
-            }
-        }
-
+        new_car->other = *available;
+        *available = new_car;
     }else{
         printf("Error: new car not created;\n");
     }
@@ -1044,6 +1050,9 @@ void add_car(HashData** map, FILE* input) {
     refilled = search_station(map, distance);
 
     if(refilled){
+        if(range > refilled->max_range){
+            refilled->max_range = range;
+        }
         new_car(&refilled->available_cars, range);
         printf("aggiunta\n");
     }else{
