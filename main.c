@@ -42,15 +42,19 @@ void remove_station(HashData**, FILE*);
 void remove_car(HashData**, FILE*);
 void route_calculation(HashData**, FILE*);
 void dijkstra(HashData**, HashData*, HashData*, int, int, int, int*, Station**, int*);
-Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish);
+void dijkstra_reverse(HashData**, HashData*, HashData*, int, int, int, int*, Station**, int*);
+Node* dijkstra_setup(HashData**, HashData*, int, int);
+Node* dijkstra_setup_reverse(HashData**, HashData*, int, int);
 Station* search_station(HashData**, int);
 Node* create_qnode(Station*);
 void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
 void reset(HashData**, HashData*, HashData*);
+void reset_reverse(HashData**, HashData*, HashData*);
 void create_graph(HashData**, HashData*, int*, int);
 void create_graph_reverse(HashData**, HashData*, int*, int);
-void printQ(Node*);
+void reorder_q(Node**, Node*, int*);
+void printQ(Node*, int*);
 void print_path(HashData**, int, int, int);
 void print_path_reverse(HashData**, int, int, int);
 void print_hash(HashData**);
@@ -129,7 +133,7 @@ void route_calculation(HashData** map, FILE* input) {
     }
 
     //TODO Seconda condizione if è solo finché non posso calcolare il contrario
-    if(flag < 2 || start>finish){
+    if(flag < 2 /*|| start>finish*/){
         printf("nessun percorso\n");
         return;
     }else{
@@ -144,7 +148,11 @@ void route_calculation(HashData** map, FILE* input) {
         int distance[dimension], print[dimension];
         Station* precedent[dimension];
 
-        dijkstra(map, source, arrival, start, finish, dimension, distance, precedent, print);
+        if(start<=finish) {
+            dijkstra(map, source, arrival, start, finish, dimension, distance, precedent, print);
+        }else{
+            dijkstra_reverse(map, source, arrival, start, finish, dimension, distance, precedent, print);
+        }
 
         i=dimension-1;
 
@@ -160,7 +168,12 @@ void route_calculation(HashData** map, FILE* input) {
             printf("\n");
         }
 
-        reset(map, source, arrival);
+        if(start <= finish) {
+            reset(map, source, arrival);
+        }else{
+            reset(map, arrival, source);
+            //print_path_reverse(map, start, finish, 5);
+        }
     }
 }
 
@@ -172,16 +185,16 @@ void route_calculation(HashData** map, FILE* input) {
  * @param dimension sarà il numero di nodi del grafo
  * @param start distanza della stazione di partenza
  */
-void create_graph_reverse(HashData **map, HashData *data, int *dimension, int start){
+void create_graph_reverse(HashData **map, HashData *data, int *dimension, int finish){
     HashData *tmp = NULL;
     int key = hash_function(data->data->distance);
 
-    while(data->data->distance > start){
+    while(data->data->distance > finish){
         *dimension = *dimension + 1;
         data->data->id = *dimension;
         tmp = data;
         if(data->data->available_cars != NULL) {
-            while ((data->data->distance - tmp->data->distance) <= data->data->available_cars->range && tmp->data->distance >= start) {
+            while ((data->data->distance - tmp->data->distance) <= data->data->available_cars->range && tmp->data->distance >= finish) {
                 if (tmp->data->distance != data->data->distance) {
                     add_reachable(&data->data->reachable, tmp->data);
                 }
@@ -195,6 +208,12 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int st
                         tmp = map[key];
                         if (tmp == NULL) {
                             break;
+                        }else{
+                            if(tmp->next){
+                                while(tmp->next){
+                                    tmp = tmp->next;
+                                }
+                            }
                         }
                     } else {
                         break;
@@ -214,6 +233,12 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int st
                 data = map[key];
                 if(data == NULL){
                     break;
+                }else{
+                    if(data->next){
+                        while(data->next){
+                            data = data->next;
+                        }
+                    }
                 }
             }else{
                 break;
@@ -286,6 +311,34 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
 }
 
 
+void reset_reverse(HashData **map, HashData *source, HashData *arrival){
+    Node *tmp=NULL;
+    int key = hash_function(source->data->distance);
+
+    while(source->data->distance != arrival->data->distance){
+        source->data->id = 0;
+        while(source->data->reachable) {
+            tmp = source->data->reachable;
+            source->data->reachable = source->data->reachable->next;
+            free(tmp);
+        }
+        source = source->previous;
+        if (key > 0) {
+            key--;
+            while (map[key] == NULL && key > 0) {
+                key--;
+            }
+            source = map[key];
+            if(source->next){
+                while(source->next){
+                    source = source->next;
+                }
+            }
+        }
+    }
+    source->data->id = 0;
+}
+
 
 /**
  * Funzione di reset che prende il grafo utilizzato in precedenza e per ogni nodo, pulisce le stazioni raggiungibili da esso e ne resetta l'id riponendolo a 0
@@ -316,6 +369,11 @@ void reset(HashData **map, HashData *source, HashData *arrival){
         }
     }
     source->data->id = 0;
+    while(source->data->reachable) {
+        tmp = source->data->reachable;
+        source->data->reachable = source->data->reachable->next;
+        free(tmp);
+    }
 }
 
 
@@ -332,7 +390,7 @@ void reset(HashData **map, HashData *source, HashData *arrival){
  * @param print array che serve a stampare le stazioni nell'ordine giusto alla fine dell'algoritmo
  */
 void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, int finish, int dimension, int *distance, Station **precedent, int *print){
-    Node *u, *v;
+    Node *u, *v, *q = NULL;
     int alt, i;
 
     for(i=0; i<dimension; i++){
@@ -342,7 +400,12 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
     }
 
     distance[0] = 0;
-    Node *q = dijkstra_setup(map, source, start, finish);
+
+    if(start <= finish){
+        q = dijkstra_setup(map, source, start, finish);
+    }else{
+        q = dijkstra_setup_reverse(map, source, start, finish);
+    }
 
     //print_path(map, start, finish, dimension);
 
@@ -362,7 +425,6 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
             if(distance[v->reaching->id-1]==-1 || alt < distance[v->reaching->id-1]){
                 distance[v->reaching->id-1] = alt;
                 precedent[v->reaching->id-1] = u->reaching;
-                //Riordino non necessario?
             }
 
             v = v->next;
@@ -385,6 +447,157 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
         print[i] = source->data->distance;
     }
 
+}
+
+
+void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int start, int finish, int dimension, int *distance, Station **precedent, int *print){
+    Node *u, *v, *q = NULL;
+    int alt, i;
+
+    for(i=0; i<dimension; i++){
+        distance[i] = -1;
+        precedent[i] = NULL;
+        print[i] = -1;
+    }
+
+    distance[0] = 0;
+
+    if(start <= finish){
+        q = dijkstra_setup(map, source, start, finish);
+    }else{
+        q = dijkstra_setup_reverse(map, source, start, finish);
+    }
+
+    //print_path_reverse(map, start, finish, dimension);
+
+    //printQ(q, distance);
+
+    while(q){
+        u = q;
+
+        if(distance[u->reaching->id-1] == -1 || u->reaching->distance == finish){
+            break;
+        }
+
+        v = u->reaching->reachable;
+
+        while(v){
+            alt = distance[u->reaching->id-1] + 1;
+            if(distance[v->reaching->id-1]==-1 || alt < distance[v->reaching->id-1]){
+                distance[v->reaching->id-1] = alt;
+                precedent[v->reaching->id-1] = u->reaching;
+                reorder_q(&q, v, distance);
+            }
+            //printQ(q, distance);
+            v = v->next;
+        }
+
+        delete_qnode(&q);
+        //printf("Eliminato nodo:\n");
+        //printQ(q, distance);
+    }
+
+    if(q!=NULL){
+        while(q){
+            delete_qnode(&q);
+        }
+    }
+
+    i = i-1;
+
+    if(precedent[i] != NULL){
+        int j = i;
+        print[i] = arrival->data->distance;
+        i--;
+        while(precedent[j]->distance != start){
+            print[i] = precedent[j]->distance;
+            j = precedent[j]->id-1;
+            i--;
+        }
+        print[i] = source->data->distance;
+    }
+
+}
+
+
+void reorder_q(Node **q, Node *near, int *distance){
+    Node *tmp = NULL, *v = NULL, *tmp2 = NULL;
+
+    tmp = *q;
+
+    while(tmp){
+        if(tmp->reaching->distance == near->reaching->distance){
+            v = tmp;
+            break;
+        }
+        tmp = tmp->next;
+    }
+
+    tmp = *q;
+
+    if(distance[tmp->reaching->id-1] > distance[v->reaching->id-1] && distance[tmp->reaching->id-1] != -1){
+        v->next = tmp;
+        *q = v;
+    }else if(distance[tmp->reaching->id-1] == distance[v->reaching->id-1]){
+        if(tmp->reaching->distance > v->reaching->distance){
+            v->next = tmp;
+            *q = v;
+        }else{
+            while(tmp->next && tmp->next->reaching->distance < v->reaching->distance && distance[tmp->next->reaching->id-1] == distance[v->reaching->id-1]){
+                tmp = tmp->next;
+            }
+            tmp->next->next = v->next;
+            v->next = tmp->next;
+            tmp->next = v;
+        }
+    }else{
+        while(tmp->next && distance[tmp->next->reaching->id-1] < distance[v->reaching->id-1] && distance[tmp->next->reaching->id-1] != -1){
+            tmp = tmp->next;
+        }
+        if(tmp != v){
+            if(tmp->next){
+                if(distance[tmp->next->reaching->id-1] == -1 || distance[tmp->next->reaching->id-1] > distance[v->reaching->id-1]){
+                    v->next = tmp->next;
+                    tmp->next = v;
+                }else{
+                    while(tmp->next && tmp->next->reaching->distance < v->reaching->distance && distance[tmp->next->reaching->id-1] == distance[v->reaching->id-1]){
+                        tmp = tmp->next;
+                    }
+                    if(tmp->next == v){
+                        tmp = tmp->next;
+                    }
+                    if(tmp != v) {
+                        tmp2 = tmp->next;
+                        while(tmp2->next){
+                            if(distance[tmp2->next->reaching->id-1] != distance[tmp->next->reaching->id-1]){
+                                break;
+                            }
+                            tmp2 = tmp2->next;
+                        }
+                        if(tmp2 == v){
+                            tmp2 = tmp->next;
+                            while(tmp2->next){
+                                if(tmp2->next == v){
+                                    break;
+                                }
+                                tmp2 = tmp2->next;
+                            }
+                            tmp2->next = v->next; //Ha senso solo in lunghezza due
+                            v->next = tmp->next;
+                            tmp->next = v;
+                        }else{
+                            tmp2->next = v->next;
+                            v->next = tmp->next;
+                            tmp->next = v;
+                        }
+                    }
+                }
+            }else{
+                v->next = tmp->next;
+                tmp->next = v;
+            }
+        }
+    }
 }
 
 
@@ -462,6 +675,61 @@ Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish){
                     key++;
                 }
                 tmp = map[key];
+            }
+        }
+    }
+
+    advancement->next = create_qnode(tmp->data);
+
+    return result;
+}
+
+
+Node* dijkstra_setup_reverse(HashData **map, HashData *source, int start, int finish){
+    Node *result = NULL, *advancement = NULL;
+    HashData *tmp;
+    int key = hash_function(source->data->distance);
+
+    result = create_qnode(source->data);
+
+    if(source->data->distance == start && source->data->distance == finish){
+        return result;
+    }
+
+    advancement = result;
+    tmp = source->previous;
+
+    if (tmp == NULL) {
+        if (key > 0) {
+            key--;
+            while (map[key] == NULL && key > 0) {
+                key--;
+            }
+            tmp = map[key];
+            if(tmp->next){
+                while(tmp->next){
+                    tmp = tmp->next;
+                }
+            }
+        }
+    }
+
+    while(tmp->data->distance != finish){
+        advancement->next = create_qnode(tmp->data);
+        advancement = advancement->next;
+        tmp = tmp->previous;
+        if (tmp == NULL) {
+            if (key > 0) {
+                key--;
+                while (map[key] == NULL && key > 0) {
+                    key--;
+                }
+                tmp = map[key];
+                if(tmp->next){
+                    while(tmp->next){
+                        tmp = tmp->next;
+                    }
+                }
             }
         }
     }
@@ -593,11 +861,17 @@ void remove_station(HashData** map, FILE* input) {
     }else if(map[key]->data->distance == distance){
         destroy = map[key];
         map[key] = map[key]->next;
+        if(map[key] != NULL) {
+            map[key]->previous = NULL;
+        }
         found = 1;
     }else {
         while (map[key]->next && !found) {
             if (map[key]->next->data->distance == distance) {
                 destroy = map[key]->next;
+                if(map[key]->next->next != NULL) {
+                    map[key]->next->next->previous = map[key];
+                }
                 map[key]->next = map[key]->next->next;
                 found = 1;
             } else {
@@ -910,6 +1184,7 @@ void print_path(HashData** map, int s, int f, int dim){
 
 void print_path_reverse(HashData** map, int s, int f, int dim){
     HashData *source = NULL;
+    Node *tmp;
     int key = hash_function(s);
 
     source = map[key];
@@ -924,23 +1199,30 @@ void print_path_reverse(HashData** map, int s, int f, int dim){
     printf("\n");
     while(source->data->distance > f){
         printf("Dalla stazione %d (%d): ", source->data->distance, source->data->id);
-        while(source->data->reachable){
-            printf("%d(%d) ", source->data->reachable->reaching->distance, source->data->reachable->reaching->id);
-            source->data->reachable = source->data->reachable->next;
+        tmp = source->data->reachable;
+        while(tmp){
+            printf("%d(%d) ", tmp->reaching->distance, tmp->reaching->id);
+            tmp = tmp->next;
         }
         printf("\n");
         source = source->previous;
-        if(source == NULL){
-            if(key >= 0){
+        if (source == NULL) {
+            if (key > 0) {
                 key--;
-                while(map[key] == NULL && key >= 0){
+                while (map[key] == NULL && key > 0) {
                     key--;
                 }
                 source = map[key];
-                if(source == NULL) {
+                if (source == NULL) {
                     break;
+                }else{
+                    if(source->next){
+                        while(source->next){
+                            source = source->next;
+                        }
+                    }
                 }
-            }else{
+            } else {
                 break;
             }
         }
@@ -949,10 +1231,12 @@ void print_path_reverse(HashData** map, int s, int f, int dim){
 }
 
 
-void printQ(Node *q){
-    while(q->next){
-        printf("%d(%d) -> ", q->reaching->distance, q->reaching->id);
-        q = q->next;
+void printQ(Node *q, int *distance){
+    Node *tmp=NULL;
+    tmp = q;
+    while(tmp->next){
+        printf("%d(%d) -> ", tmp->reaching->distance, distance[tmp->reaching->id-1]);
+        tmp = tmp->next;
     }
-    printf("%d(%d)\n", q->reaching->distance, q->reaching->id);
+    printf("%d(%d)\n", tmp->reaching->distance, distance[tmp->reaching->id-1]);
 }
