@@ -3,8 +3,8 @@
 #include <stdlib.h>
 
 #define COMMAND 18
-#define HASH_SIZE 50
-#define SENSIBILITY 100
+#define HASH_SIZE 1000000
+#define SENSIBILITY 1000
 
 typedef struct car{
     int range;
@@ -50,15 +50,15 @@ Node* create_qnode(Station*);
 void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
 void reset(HashData**, HashData*, HashData*);
-void reset_reverse(HashData**, HashData*, HashData*);
+//void reset_reverse(HashData**, HashData*, HashData*);
 void create_graph(HashData**, HashData*, int*, int);
 void create_graph_reverse(HashData**, HashData*, int*, int);
-void reorder_q(Node**, Node*, int*);
-void printQ(Node*, int*);
-void print_path(HashData**, int, int, int);
-void print_path_reverse(HashData**, int, int, int);
-void print_hash(HashData**);
-void print_hash_reverse(HashData**);
+void reorder_q(Node**, Node*, const int*);
+//void printQ(Node*, int*);
+//void print_path(HashData**, int, int, int);
+//void print_path_reverse(HashData**, int, int, int);
+//void print_hash(HashData**);
+//void print_hash_reverse(HashData**);
 
 
 int main() {
@@ -106,7 +106,7 @@ void route_calculation(HashData** map, FILE* input) {
     int start, finish, key, dimension = 0, flag = 0, i;
     HashData *data, *source, *arrival;
 
-    fscanf(input, "%d %d", &start, &finish);
+    if(fscanf(input, "%d %d", &start, &finish) != EOF){}
 
     key = hash_function(finish);
     data = map[key];
@@ -310,7 +310,7 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
     data->data->id = *dimension;
 }
 
-
+/*
 void reset_reverse(HashData **map, HashData *source, HashData *arrival){
     Node *tmp=NULL;
     int key = hash_function(source->data->distance);
@@ -338,7 +338,7 @@ void reset_reverse(HashData **map, HashData *source, HashData *arrival){
     }
     source->data->id = 0;
 }
-
+*/
 
 /**
  * Funzione di reset che prende il grafo utilizzato in precedenza e per ogni nodo, pulisce le stazioni raggiungibili da esso e ne resetta l'id riponendolo a 0
@@ -520,7 +520,7 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
 }
 
 
-void reorder_q(Node **q, Node *near, int *distance){
+void reorder_q(Node **q, Node *near, const int *distance){
     Node *tmp = NULL, *v = NULL, *tmp2 = NULL;
 
     tmp = *q;
@@ -781,7 +781,7 @@ void remove_car(HashData** map, FILE* input) {
     Car* destroy;
     Car* backup;
 
-    fscanf(input, "%d %d", &distance, &range);
+    if(fscanf(input, "%d %d", &distance, &range) != EOF){}
 
     target = search_station(map, distance);
 
@@ -852,7 +852,7 @@ void remove_station(HashData** map, FILE* input) {
     HashData* destroy = NULL;
     Car* tmp;
 
-    fscanf(input, "%d", &distance);
+    if(fscanf(input, "%d", &distance) != EOF){}
     key = hash_function(distance);
     backup = map[key];
 
@@ -917,7 +917,7 @@ int hash_function(int dist){
 void add_station(HashData** map, FILE* input) {
     Station *new_station;
     int quantity, range, distance;
-    fscanf(input, "%d", &distance);
+    if(fscanf(input, "%d", &distance) != EOF){}
 
     if(search_station(map, distance) == NULL){
         new_station = malloc(sizeof(Station));
@@ -926,10 +926,10 @@ void add_station(HashData** map, FILE* input) {
             new_station->distance = distance;
             new_station->id = 0;
             new_station->reachable = NULL;
-            fscanf(input, "%d", &quantity);
+            if(fscanf(input, "%d", &quantity) != EOF){}
 
             for( int i=0; i<quantity; i++ ){
-                fscanf(input, "%d", &range);
+                if(fscanf(input, "%d", &range) != EOF){}
                 new_car(&new_station->available_cars, range);
             }
 
@@ -938,9 +938,9 @@ void add_station(HashData** map, FILE* input) {
             printf("Error: initial station not created;\n");
         }
     }else{
-        fscanf(input, "%d",&quantity);
+        if(fscanf(input, "%d", &quantity) != EOF){}
         for( int i=0; i<quantity; i++ ){
-            fscanf(input, "%d", &range);
+            if(fscanf(input, "%d", &range) != EOF){}
         }
         printf("non aggiunta\n");
     }
@@ -1068,7 +1068,7 @@ void add_car(HashData** map, FILE* input) {
     int distance, range;
     Station* refilled;
 
-    fscanf(input, "%d %d", &distance, &range);
+    if(fscanf(input, "%d %d", &distance, &range) != EOF){}
 
     refilled = search_station(map, distance);
 
@@ -1102,7 +1102,7 @@ void add_car(HashData** map, FILE* input) {
 
 
 //TEST
-
+/*
 void print_hash(HashData** map){
     for(int i=0; i<HASH_SIZE; i++){
         printf("\n\n\nGRUPPO: %d\n\n\n", i);
@@ -1240,3 +1240,4 @@ void printQ(Node *q, int *distance){
     }
     printf("%d(%d)\n", tmp->reaching->distance, distance[tmp->reaching->id-1]);
 }
+ */
