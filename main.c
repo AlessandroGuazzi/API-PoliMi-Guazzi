@@ -310,36 +310,6 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
     data->data->id = *dimension;
 }
 
-/*
-void reset_reverse(HashData **map, HashData *source, HashData *arrival){
-    Node *tmp=NULL;
-    int key = hash_function(source->data->distance);
-
-    while(source->data->distance != arrival->data->distance){
-        source->data->id = 0;
-        while(source->data->reachable) {
-            tmp = source->data->reachable;
-            source->data->reachable = source->data->reachable->next;
-            free(tmp);
-        }
-        source = source->previous;
-        if (key > 0) {
-            key--;
-            while (map[key] == NULL && key > 0) {
-                key--;
-            }
-            source = map[key];
-            if(source->next){
-                while(source->next){
-                    source = source->next;
-                }
-            }
-        }
-    }
-    source->data->id = 0;
-}
-*/
-
 /**
  * Funzione di reset che prende il grafo utilizzato in precedenza e per ogni nodo, pulisce le stazioni raggiungibili da esso e ne resetta l'id riponendolo a 0
  * @param map Hash Map delle stazioni
@@ -926,6 +896,7 @@ void add_station(HashData** map, FILE* input) {
             new_station->distance = distance;
             new_station->id = 0;
             new_station->reachable = NULL;
+            new_station->available_cars = NULL;
             if(fscanf(input, "%d", &quantity) != EOF){}
 
             for( int i=0; i<quantity; i++ ){
@@ -1000,7 +971,7 @@ void insert(HashData** map, Station* station){
  * @param range autonomia massima della macchina inserita
  */
 void new_car(Car** available, int range){
-    Car *new_car, *tmp;
+    Car *new_car = NULL, *tmp = NULL;
 
     new_car = malloc(sizeof(Car));
 
