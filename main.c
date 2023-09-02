@@ -3,12 +3,14 @@
 #include <stdlib.h>
 
 #define COMMAND 18
-#define HASH_SIZE 1000000
-#define SENSIBILITY 1000
+#define HASH_SIZE 100
+#define SENSIBILITY 100
 
 typedef struct car{
     int range;
-    struct car* other;
+    struct car* right;
+    struct car* left;
+    struct car* father;
 } Car;
 
 
@@ -47,6 +49,13 @@ void dijkstra_reverse(HashData**, HashData*, HashData*, int, int, int, int*, Sta
 Node* dijkstra_setup(HashData**, HashData*, int, int);
 Node* dijkstra_setup_reverse(HashData**, HashData*, int, int);
 Station* search_station(HashData**, int);
+Car* tree_search(Car*, int);
+Car* tree_minimum(Car*);
+Car* tree_maximum(Car*);
+Car* tree_successor(Car*);
+Car* tree_delete(Car*, Car*);
+Car* search_tree(Car*, int);
+void delete_full_tree(Car*);
 Node* create_qnode(Station*);
 void delete_qnode(Node**);
 void add_reachable(Node**, Station*);
@@ -60,7 +69,8 @@ void reorder_q(Node**, Node*, const int*);
 //void print_path_reverse(HashData**, int, int, int);
 //void print_hash(HashData**);
 //void print_hash_reverse(HashData**);
-void find_new_max(Station*);
+void printInOrder(Car*);
+void find_new_max(Car*);
 
 
 int main() {
@@ -757,55 +767,24 @@ void remove_car(HashData** map, FILE* input) {
 
     target = search_station(map, distance);
 
-    if(target){
-        backup = target->available_cars;
+    if(target) {
+        destroy = search_tree(target->available_cars, range);
 
-        if(target->available_cars == NULL){
-            found = 0;
-        }else if(target->available_cars->range == range){
-            found = 1;
-            destroy = target->available_cars;
-            target->available_cars = target->available_cars->other;
-        }else{
-            while (target->available_cars->other && !found) {
-                if (target->available_cars->other->range == range) {
-                    destroy = target->available_cars->other;
-                    target->available_cars->other = target->available_cars->other->other;
-                    found = 1;
-                } else {
-                    target->available_cars = target->available_cars->other;
-                }
+        if (destroy != NULL) {
+            destroy = tree_delete(target->available_cars, search_tree(target->available_cars, range));
+            if (target->max_range == destroy->range) {
+                free(destroy);
+                target->max_range = tree_maximum(target->available_cars)->range;
+            } else {
+                free(destroy);
             }
-            target->available_cars = backup;
+            printf("rottamata\n");
+        } else {
+            printf("non rottamata\n");
         }
-    }
-
-    if(found){
-        if(target->max_range == destroy->range){
-            free(destroy);
-            find_new_max(target);
-        }else{
-            free(destroy);
-        }
-        printf("rottamata\n");
     }else{
         printf("non rottamata\n");
     }
-}
-
-void find_new_max(Station *target) {
-    int max = 0;
-    Car *tmp = NULL;
-
-    tmp = target->available_cars;
-    while(tmp){
-        if(tmp->range > max){
-            max = tmp->range;
-        }
-        tmp = tmp->other;
-    }
-
-    target->max_range = max;
 }
 
 
@@ -830,6 +809,112 @@ Station* search_station(HashData** map, int distance){
         return tmp->data;
     else
         return NULL;
+}
+
+
+Car* tree_search(Car* root, int range){
+    if(root == NULL || range == root->range){
+        return root;
+    }
+    if(range < root->range){
+        return tree_search(root->left, range);
+    }else{
+        return tree_search(root->right, range);
+    }
+}
+
+
+Car* tree_maximum(Car *root){
+    Car *x = root;
+    while(x->right != NULL){
+        x = x->right;
+    }
+    return x;
+}
+
+
+Car* tree_minimum(Car *root){
+    Car *x = root;
+    while(x->left != NULL){
+        x = x->left;
+    }
+    return x;
+}
+
+
+Car* tree_successor(Car *node){
+    Car *x = node, *y = NULL;
+    if(x->right != NULL){
+        return tree_minimum(x->right);
+    }
+    if(x->father != NULL){
+        y = x->father;
+        while(y != NULL && x == y->right){
+            x = y;
+            y = y->father;
+        }
+    }else{
+        y = x;
+    }
+
+    return y;
+}
+
+
+Car* search_tree(Car* root, int range){
+    if(root == NULL || range == root->range){
+        return root;
+    }
+    if(range < root->range){
+        return search_tree(root->left, range);
+    }else{
+        return search_tree(root->right, range);
+    }
+}
+
+
+Car* tree_delete(Car* root, Car* z){
+    Car *y, *x;
+
+    if(z->right == NULL || z->left == NULL){
+        y = z;
+    }else{
+        y = tree_successor(z);
+    }
+
+    if(y->left != NULL){
+        x = y->left;
+    }else{
+        x = y->right;
+    }
+
+    if(x != NULL){
+        x->father = y->father;
+    }
+
+    if(y->father == NULL){
+        root = x;
+    }else if(y == y->father->left){
+        y->father->left = x;
+    }else{
+        y->father->right = x;
+    }
+
+    if(y != z){
+        z->range = y->range;
+    }
+
+    return y;
+}
+
+
+void delete_full_tree(Car *root){
+    if(root != NULL){
+        delete_full_tree(root->left);
+        delete_full_tree(root->right);
+        free(root);
+        root = NULL;
+    }
 }
 
 
@@ -874,11 +959,9 @@ void remove_station(HashData** map, FILE* input) {
     }
 
     if(found){
-        while(destroy->data->available_cars){
-            tmp = destroy->data->available_cars;
-            destroy->data->available_cars = destroy->data->available_cars->other;
-            free(tmp);
-        }
+
+        delete_full_tree(destroy->data->available_cars);
+
 
         free(destroy->data);
         free(destroy);
@@ -931,6 +1014,9 @@ void add_station(HashData** map, FILE* input) {
             }
 
             insert(map, new_station);
+
+            //printInOrder(new_station->available_cars);
+            //printf("\n");
         }else{
             printf("Error: initial station not created;\n");
         }
@@ -945,7 +1031,7 @@ void add_station(HashData** map, FILE* input) {
 
 
 /**
- * Inserire una determinata stazione come nuovo dato nella riga dell'hash map corretta, tenendole in ordine di distanza crescentre dalla stazione 0
+ * Inserire una determinata stazione come nuovo dato nella riga dell'hash map corretta, tenendole in ordine di distanza crescente dalla stazione 0
  * @param map has map delle stazioni
  * @param station da aggiungere
  */
@@ -998,13 +1084,32 @@ void insert(HashData** map, Station* station){
  */
 void new_car(Car** available, int range){
     Car *new_car = NULL;
+    Car *root = NULL, *father = NULL;
 
+    root = *available;
+
+    while(root != NULL){
+        father = root;
+        if(range < root->range){
+            root = root->left;
+        }else{
+            root = root->right;
+        }
+    }
     new_car = malloc(sizeof(Car));
 
     if( new_car != NULL ){
+        new_car->father = father;
         new_car->range = range;
-        new_car->other = *available;
-        *available = new_car;
+        new_car->left = NULL;
+        new_car->right = NULL;
+        if(father == NULL){
+            *available = new_car;
+        }else if(range < father->range){
+            father->left = new_car;
+        }else{
+            father->right = new_car;
+        }
     }else{
         printf("Error: new car not created;\n");
     }
@@ -1221,3 +1326,11 @@ void printQ(Node *q, int *distance){
     printf("%d(%d)\n", tmp->reaching->distance, distance[tmp->reaching->id-1]);
 }
  */
+
+void printInOrder(Car* root) {
+    if (root != NULL) {
+        printInOrder(root->left);
+        printf("%d ", root->range);
+        printInOrder(root->right);
+    }
+}
