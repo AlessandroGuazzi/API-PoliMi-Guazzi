@@ -100,7 +100,7 @@ int main() {
     //print_hash(hash_map);
     //print_hash_reverse(hash_map);
 
-    return 1;
+    return 0;
 }
 
 
@@ -325,7 +325,6 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
  * @param arrival stazione di arrivo
  */
 void reset(HashData **map, HashData *source, HashData *arrival){
-    Node *tmp=NULL;
     int key = hash_function(source->data->distance);
 
     while(source->data->distance != arrival->data->distance){
