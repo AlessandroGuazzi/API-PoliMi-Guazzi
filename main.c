@@ -381,6 +381,9 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                     if (distance[v->data->id - 1] == -1 || alt < distance[v->data->id - 1]) {
                         distance[v->data->id - 1] = alt;
                         precedent[v->data->id - 1] = u->reaching->data;
+                        if(v->data->id == dimension){
+                            goto jump;
+                        }
                     }
 
                     if(v->data->distance == u->reaching->data->reachable->distance){
@@ -402,6 +405,10 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                 }
             }
         }
+        delete_qnode(&q);
+    }
+    jump:
+    while(q){
         delete_qnode(&q);
     }
 
@@ -458,6 +465,9 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                     if (distance[v->data->id - 1] == -1 || alt < distance[v->data->id - 1]) {
                         distance[v->data->id - 1] = alt;
                         precedent[v->data->id - 1] = u->reaching->data;
+                        if(v->data->id == dimension){
+                            goto jump;
+                        }
                         reorder_q(&q, v, distance);
                     }
 
@@ -489,10 +499,9 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
         delete_qnode(&q);
     }
 
-    if(q!=NULL){
-        while(q){
-            delete_qnode(&q);
-        }
+    jump:
+    while(q){
+        delete_qnode(&q);
     }
 
     i = i-1;
