@@ -11,11 +11,11 @@ typedef struct car{
     struct car* other;
 } Car;
 
+typedef struct data HashData;
+
 typedef struct reached{
     int distance;
 } Reached;
-
-typedef struct node Node;
 
 typedef struct station{
     int distance;
@@ -169,7 +169,7 @@ void route_calculation(HashData** map, FILE* input) {
 
 void create_graph_reverse(HashData **map, HashData *data, int *dimension, int finish){
     HashData *tmp = NULL;
-    int key = hash_function(data->data->distance);
+    int key = hash_function(data->data->distance), coverage = 0;
 
     while(data->data->distance > finish){
         *dimension = *dimension + 1;
@@ -184,8 +184,16 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int fi
                 if (tmp == NULL) {
                     if (key > 0) {
                         key--;
+                        coverage = SENSIBILITY*key + SENSIBILITY-1;
+                        if(data->data->distance - data->data->max_range > coverage){
+                            goto jump;
+                        }
                         while (map[key] == NULL && key > 0) {
                             key--;
+                            coverage -= SENSIBILITY;
+                            if(data->data->distance - data->data->max_range > coverage){
+                                goto jump;
+                            }
                         }
                         tmp = map[key];
                         if (tmp == NULL) {
@@ -203,14 +211,23 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int fi
                 }
             }
         }
-
+        jump:
         key = hash_function(data->data->distance);
         data = data->previous;
         if(data == NULL){
             if(key > 0){
                 key--;
+                coverage = SENSIBILITY*key + SENSIBILITY-1;
+                if(coverage < finish){
+                    rompi:
+                    break;
+                }
                 while(map[key] == NULL && key > 0){
                     key--;
+                    coverage -= SENSIBILITY;
+                    if(coverage < finish){
+                        goto rompi;
+                    }
                 }
                 data = map[key];
                 if(data == NULL){
@@ -234,7 +251,7 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int fi
 
 void create_graph(HashData **map, HashData *data, int *dimension, int finish){
     HashData *tmp = NULL;
-    int key = hash_function(data->data->distance);
+    int key = hash_function(data->data->distance), coverage = 0;
 
     while(data->data->distance<finish){
         *dimension = *dimension + 1;
@@ -250,8 +267,16 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
                 if (tmp == NULL) {
                     if (key < HASH_SIZE - 1) {
                         key++;
+                        coverage = SENSIBILITY*key;
+                        if(data->data->distance + data->data->max_range < coverage){
+                            goto jump;
+                        }
                         while (map[key] == NULL && key < HASH_SIZE - 1) {
                             key++;
+                            coverage += SENSIBILITY;
+                            if(data->data->distance + data->data->max_range < coverage){
+                                goto jump;
+                            }
                         }
                         tmp = map[key];
                         if (tmp == NULL) {
@@ -263,14 +288,23 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
                 }
             }
         }
-
+        jump:
         key = hash_function(data->data->distance);
         data = data->next;
         if(data == NULL){
             if(key < HASH_SIZE-1){
                 key++;
+                coverage = SENSIBILITY*key;
+                if(coverage > finish){
+                    rompi:
+                    break;
+                }
                 while(map[key] == NULL && key<HASH_SIZE-1){
                     key++;
+                    coverage += SENSIBILITY;
+                    if(coverage > finish){
+                        goto rompi;
+                    }
                 }
                 data = map[key];
                 if(data == NULL){
@@ -349,6 +383,10 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                         precedent[v->data->id - 1] = u->reaching->data;
                     }
 
+                    if(v->data->distance == u->reaching->data->reachable->distance){
+                        break;
+                    }
+
                     v = v->next;
                     if (v == NULL) {
                         if (key < HASH_SIZE - 1) {
@@ -421,6 +459,10 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                         distance[v->data->id - 1] = alt;
                         precedent[v->data->id - 1] = u->reaching->data;
                         reorder_q(&q, v, distance);
+                    }
+
+                    if(v->data->distance == u->reaching->data->reachable->distance){
+                        break;
                     }
 
                     v = v->previous;
@@ -678,7 +720,6 @@ void add_reachable(Reached ** n, Station* s) {
         Reached *new_node = NULL;
         new_node = malloc(sizeof(Reached));
         if (new_node != NULL) {
-
             new_node->distance = s->distance;
             *n = new_node;
         } else {
@@ -698,7 +739,6 @@ void add_reachable_reverse(Reached ** n, Station* s) {
         Reached *new_node = NULL;
         new_node = malloc(sizeof(Reached));
         if (new_node != NULL) {
-
             new_node->distance = s->distance;
             *n = new_node;
         } else {
