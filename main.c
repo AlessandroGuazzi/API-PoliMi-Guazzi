@@ -3,8 +3,8 @@
 #include <stdlib.h>
 
 #define COMMAND 18
-#define HASH_SIZE 1000000
-#define SENSIBILITY 1000
+#define HASH_SIZE 100000
+#define SENSIBILITY 10000
 
 typedef struct car{
     int range;
