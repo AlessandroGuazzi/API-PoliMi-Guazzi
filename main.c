@@ -179,6 +179,7 @@ void create_graph_reverse(HashData **map, HashData *data, int *dimension, int fi
             while ((data->data->distance - tmp->data->distance) <= data->data->max_range && tmp->data->distance >= finish) {
                 if (tmp->data->distance != data->data->distance) {
                     add_reachable_reverse(&data->data->reachable, tmp->data);
+                    break;
                 }
                 tmp = tmp->previous;
                 if (tmp == NULL) {
@@ -262,6 +263,7 @@ void create_graph(HashData **map, HashData *data, int *dimension, int finish){
                    tmp->data->distance <= finish) {
                 if (tmp->data->distance != data->data->distance) {
                     add_reachable(&data->data->reachable, tmp->data);
+                    break;
                 }
                 tmp = tmp->next;
                 if (tmp == NULL) {
@@ -376,7 +378,7 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
         v = u->reaching;
         if(u->reaching->data->reachable != NULL) {
             while (v) {
-                if (v->data->distance <= u->reaching->data->reachable->distance) {
+                if ((v->data->distance - u->reaching->data->distance) <= u->reaching->data->max_range) {
                     alt = distance[u->reaching->data->id - 1] + 1;
                     if (distance[v->data->id - 1] == -1 || alt < distance[v->data->id - 1]) {
                         distance[v->data->id - 1] = alt;
@@ -386,9 +388,9 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                         }
                     }
 
-                    if(v->data->distance == u->reaching->data->reachable->distance){
+                    /*if(v->data->distance == u->reaching->data->reachable->distance){
                         break;
-                    }
+                    }*/
 
                     v = v->next;
                     if (v == NULL) {
@@ -460,7 +462,7 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
 
         if(u->reaching->data->reachable != NULL) {
             while (v) {
-                if (v->data->distance >= u->reaching->data->reachable->distance) {
+                if ((u->reaching->data->distance - v->data->distance) <= u->reaching->data->max_range) {
                     alt = distance[u->reaching->data->id - 1] + 1;
                     if (distance[v->data->id - 1] == -1 || alt < distance[v->data->id - 1]) {
                         distance[v->data->id - 1] = alt;
@@ -471,9 +473,9 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                         reorder_q(&q, v, distance);
                     }
 
-                    if(v->data->distance == u->reaching->data->reachable->distance){
+                    /*if(v->data->distance == u->reaching->data->reachable->distance){
                         break;
-                    }
+                    }*/
 
                     v = v->previous;
                     if (v == NULL) {
