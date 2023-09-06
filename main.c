@@ -34,6 +34,7 @@ typedef struct data{
 typedef struct node{
     HashData* reaching;
     struct node* next;
+    struct node* prev;
 } Node;
 
 
@@ -53,12 +54,12 @@ Node* dijkstra_setup_reverse(HashData**, HashData*, int, int);
 Station* search_station(HashData**, int);
 Node* create_qnode(HashData *);
 void delete_qnode(Node**);
+Node* delete_qnode_reverse(Node**, Node*, const int*);
 void add_reachable(Reached **, Station*);
 void add_reachable_reverse(Reached **, Station*);
 void reset(HashData**, HashData*, HashData*);
 void create_graph(HashData**, HashData*, int*, int);
 void create_graph_reverse(HashData**, HashData*, int*, int);
-void reorder_q(Node**, HashData*, const int*);
 void find_new_max(Station*);
 
 
@@ -351,7 +352,7 @@ void reset(HashData **map, HashData *source, HashData *arrival){
 void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, int finish, int dimension, int *distance, Station **precedent, int *print){
     Node *u = NULL, *q = NULL;
     HashData *v = NULL;
-    int alt, i, key;
+    int alt, i, key, coverage = 0;
 
     for(i=0; i<dimension; i++){
         distance[i] = -1;
@@ -384,7 +385,7 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                         distance[v->data->id - 1] = alt;
                         precedent[v->data->id - 1] = u->reaching->data;
                         if(v->data->id == dimension){
-                            goto jump;
+                            goto stop;
                         }
                     }
 
@@ -396,8 +397,13 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                     if (v == NULL) {
                         if (key < HASH_SIZE - 1) {
                             key++;
+                            coverage = SENSIBILITY*key;
                             while (map[key] == NULL && key < HASH_SIZE - 1) {
+                                if(u->reaching->data->distance + u->reaching->data->max_range < coverage){
+                                    goto next;
+                                }
                                 key++;
+                                coverage += SENSIBILITY;
                             }
                             v = map[key];
                         }
@@ -407,9 +413,10 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
                 }
             }
         }
+        next:
         delete_qnode(&q);
     }
-    jump:
+    stop:
     while(q){
         delete_qnode(&q);
     }
@@ -434,7 +441,7 @@ void dijkstra(HashData **map, HashData *source, HashData *arrival, int start, in
 void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int start, int finish, int dimension, int *distance, Station **precedent, int *print){
     Node *u = NULL, *q = NULL;
     HashData *v = NULL;
-    int alt, i, key;
+    int alt, i, key, coverage = 0;
 
     for(i=0; i<dimension; i++){
         distance[i] = -1;
@@ -449,9 +456,8 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
     }else{
         q = dijkstra_setup_reverse(map, source, start, finish);
     }
-
+    u = q;
     while(q){
-        u = q;
         key = hash_function(u->reaching->data->distance);
 
         if(distance[u->reaching->data->id-1] == -1 || u->reaching->data->distance == finish){
@@ -468,9 +474,9 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                         distance[v->data->id - 1] = alt;
                         precedent[v->data->id - 1] = u->reaching->data;
                         if(v->data->id == dimension){
-                            goto jump;
+                            goto stop;
                         }
-                        reorder_q(&q, v, distance);
+                        //reorder_q(&q, v, distance);
                     }
 
                     /*if(v->data->distance == u->reaching->data->reachable->distance){
@@ -481,8 +487,13 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                     if (v == NULL) {
                         if (key > 0) {
                             key--;
+                            coverage = SENSIBILITY*key + SENSIBILITY-1;
                             while (map[key] == NULL && key > 0) {
+                                if(u->reaching->data->distance - u->reaching->data->max_range > coverage){
+                                    goto next;
+                                }
                                 key--;
+                                coverage -= SENSIBILITY;
                             }
                             v = map[key];
                             if (v->next) {
@@ -497,11 +508,11 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
                 }
             }
         }
-
-        delete_qnode(&q);
+        next:
+        u = delete_qnode_reverse(&q, u, distance);
     }
 
-    jump:
+    stop:
     while(q){
         delete_qnode(&q);
     }
@@ -523,82 +534,32 @@ void dijkstra_reverse(HashData **map, HashData *source, HashData *arrival, int s
 }
 
 
-void reorder_q(Node **q, HashData *near, const int *distance){
-    Node *tmp = NULL, *v = NULL, *tmp2 = NULL;
+Node* delete_qnode_reverse(Node **q, Node *u, const int *distance){
+    Node *delete, *res;
 
-    tmp = *q;
-    v = *q;
+    delete = u;
 
-    while(v){
-        if(v->reaching->data->distance == near->data->distance){
-            break;
-        }
-        v = v->next;
-    }
-
-    if(distance[tmp->reaching->data->id-1] > distance[v->reaching->data->id-1] && distance[tmp->reaching->data->id-1] != -1){
-        v->next = tmp;
-        *q = v;
-    }else if(distance[tmp->reaching->data->id-1] == distance[v->reaching->data->id-1]){
-        if(tmp->reaching->data->distance > v->reaching->data->distance){
-            v->next = tmp;
-            *q = v;
-        }else{
-            while(tmp->next && tmp->next->reaching->data->distance < v->reaching->data->distance && distance[tmp->next->reaching->data->id-1] == distance[v->reaching->data->id-1]){
-                tmp = tmp->next;
-            }
-            tmp->next->next = v->next;
-            v->next = tmp->next;
-            tmp->next = v;
-        }
+    if(u->prev != NULL){
+        u->prev->next = u->next;
+        u->next->prev = u->prev;
     }else{
-        while(tmp->next && distance[tmp->next->reaching->data->id-1] < distance[v->reaching->data->id-1] && distance[tmp->next->reaching->data->id-1] != -1){
-            tmp = tmp->next;
-        }
-        if(tmp != v){
-            if(tmp->next){
-                if(distance[tmp->next->reaching->data->id-1] == -1 || distance[tmp->next->reaching->data->id-1] > distance[v->reaching->data->id-1]){
-                    v->next = tmp->next;
-                    tmp->next = v;
-                }else{
-                    while(tmp->next && tmp->next->reaching->data->distance < v->reaching->data->distance && distance[tmp->next->reaching->data->id-1] == distance[v->reaching->data->id-1]){
-                        tmp = tmp->next;
-                    }
-                    if(tmp->next == v){
-                        tmp = tmp->next;
-                    }
-                    if(tmp != v) {
-                        tmp2 = tmp->next;
-                        while(tmp2->next){
-                            if(distance[tmp2->next->reaching->data->id-1] != distance[tmp->next->reaching->data->id-1]){
-                                break;
-                            }
-                            tmp2 = tmp2->next;
-                        }
-                        if(tmp2 == v){
-                            tmp2 = tmp->next;
-                            while(tmp2->next){
-                                if(tmp2->next == v){
-                                    break;
-                                }
-                                tmp2 = tmp2->next;
-                            }
-                            tmp2->next = v->next;
-                            v->next = tmp->next;
-                            tmp->next = v;
-                        }else{
-                            tmp2->next = v->next;
-                            v->next = tmp->next;
-                            tmp->next = v;
-                        }
-                    }
-                }
-            }else{
-                v->next = tmp->next;
-                tmp->next = v;
-            }
+        (*q) = (*q)->next;
+        (*q)->prev = NULL;
+    }
+
+
+    if(u->prev && distance[u->reaching->data->id - 1] == distance[u->prev->reaching->data->id - 1]){
+        res = u->prev;
+    }else{
+        res = u->next;
+        while(res->next && distance[res->next->reaching->data->id-1] == distance[u->next->reaching->data->id-1]){
+            res = res->next;
         }
     }
+
+    free(delete);
+
+    return res;
 }
 
 
@@ -606,6 +567,9 @@ void delete_qnode(Node **q){
     Node *tmp;
     tmp = *q;
     *q = tmp->next;
+    if(tmp->next) {
+        (*q)->prev = tmp->prev;
+    }
     free(tmp);
 }
 
@@ -618,6 +582,7 @@ Node* create_qnode(HashData *s){
     if(result){
         result->reaching = s;
         result->next = NULL;
+        result->prev = NULL;
     }else{
         printf("Error: new q node not created");
     }
@@ -652,6 +617,7 @@ Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish){
 
     while(tmp->data->distance != finish){
         advancement->next = create_qnode(tmp);
+        advancement->next->prev = advancement;
         advancement = advancement->next;
         tmp = tmp->next;
         if(tmp == NULL){
@@ -666,6 +632,7 @@ Node* dijkstra_setup(HashData **map, HashData *source, int start, int finish){
     }
 
     advancement->next = create_qnode(tmp);
+    advancement->next->prev = advancement;
 
     return result;
 }
@@ -702,6 +669,7 @@ Node* dijkstra_setup_reverse(HashData **map, HashData *source, int start, int fi
 
     while(tmp->data->distance != finish){
         advancement->next = create_qnode(tmp);
+        advancement->next->prev = advancement;
         advancement = advancement->next;
         tmp = tmp->previous;
         if (tmp == NULL) {
@@ -721,6 +689,7 @@ Node* dijkstra_setup_reverse(HashData **map, HashData *source, int start, int fi
     }
 
     advancement->next = create_qnode(tmp);
+    advancement->next->prev = advancement;
 
     return result;
 }
