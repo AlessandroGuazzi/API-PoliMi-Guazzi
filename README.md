@@ -1,4 +1,4 @@
-# Algoritmi e Principi dell'Informatica's project
+# Algoritmi e Principi dell'Informatica's project A.Y. 2022-23
 
 ## 📖 Overview
 
