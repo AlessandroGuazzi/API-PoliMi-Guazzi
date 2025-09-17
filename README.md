@@ -118,7 +118,7 @@ The project was graded based on:
 * **Efficiency**: runtime and memory usage were measured by the testing system
 * **Adherence to specifications**: correct handling of all operations and edge cases
 
-Grade: 30L / 30
+Grade: 30 / 30
 
 ---
 
